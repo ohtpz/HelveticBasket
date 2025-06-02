@@ -8,149 +8,91 @@ use PDO;
 
 class User
 {
-    /**
-     * Primary key
-     *
-     * @var integer|null
-     */
-    private ?int $idUser = null;
-
-    /**
-     * Email field
-     *
-     * @var string|null
-     */
+    private ?int $id = null;
     private ?string $email = null;
-
-    /**
-     * Password (hash) field
-     *
-     * @var string|null
-     */
     private ?string $passwordHash = null;
-
-    /**
-     * Name field
-     *
-     * @var string|null
-     */
     private ?string $name = null;
+    private ?bool $isAdmin = null;
 
-    /**
-     * Fetch all users
-     *
-     * @return array
-     */
-    public static function fetchAll(): array
+    public function getIdUser(): ?int
     {
-        $statement = Database::connection()
-            ->prepare("select * from User");
-
-        $statement->execute();
-
-        $statement->setFetchMode(\PDO::FETCH_CLASS | \PDO::FETCH_PROPS_LATE, static::class);
-
-        return $statement->fetchAll();
+        return $this->id;
     }
 
-
-    
-    public static function fetchAllNotCurrentUser(): array {
-        $statement = Database::connection()
-            ->prepare("select * from User where idUser != :idUser");
-
-        $statement->execute([
-            ':idUser' => User::current()->getIdUser()
-
-        ]);
-        
-        $statement->setFetchMode(\PDO::FETCH_CLASS | \PDO::FETCH_PROPS_LATE, static::class);
-
-        return $statement->fetchAll();
-    }
-    /**
-     * Try to fetch an User by its email
-     *
-     * @param string $email
-     * @return User|false
-     */
-    public static function fetchByEmail(string $email): User|false
+    public function getEmail(): ?string
     {
-        $statement = Database::connection()
-            ->prepare("select * from User where email = :email");
-
-        $statement->execute([
-            ':email' => $email
-        ]);
-
-        $statement->setFetchMode(\PDO::FETCH_CLASS | \PDO::FETCH_PROPS_LATE, static::class);
-
-        return $statement->fetch();
+        return $this->email;
     }
 
+    public function getName(): ?string
+    {
+        return $this->name;
+    }
 
-    /**
-     * Get the User password hash
-     *
-     * @return string
-     */
     public function getPassword(): string
     {
         return $this->passwordHash;
     }
 
-    /**
-     * Get the current User
-     *
-     * @return User|null
-     */
-    public static function current(): User|null
+    public function verifyAdmin(): bool
+    {
+        return $this->isAdmin ?? false;
+    }
+
+    public static function fetchAll(): array
+    {
+        $pdo = Database::connection();
+        $stmt = $pdo->query("SELECT * FROM User");
+        return $stmt->fetchAll(PDO::FETCH_CLASS, self::class);
+    }
+
+   
+    public static function fetchByEmail(string $email): User|false
+    {
+        $pdo = Database::connection();
+        $stmt = $pdo->prepare("SELECT * FROM User WHERE email = :email");
+        $stmt->execute([':email' => $email]);
+        $stmt->setFetchMode(PDO::FETCH_CLASS, self::class);
+        return $stmt->fetch();
+    }
+
+    public static function current(): ?User
     {
         static $current = null;
 
-        if (!$current) {
-            $email = $_SESSION['User'] ?? null;
-
-            if ($email !== null) {
-                $current = $email ? static::fetchByEmail($email) : new static;
-            }
+        if (!$current && isset($_SESSION['User'])) {
+            $email = $_SESSION['User'];
+            $current = self::fetchByEmail($email);
         }
 
         return $current;
     }
 
-    /**
-     * Store User in session
-     *
-     * @return void
-     */
+    public static function signup(string $nom, string $email, string $password): void
+    {
+        $pdo = Database::connection();
+        $stmt = $pdo->prepare("
+            INSERT INTO User (name, email, passwordHash, isAdmin) 
+            VALUES (:name, :email, :passwordHash, :isAdmin)
+        ");
+
+        $stmt->execute([
+            ':name' => $nom,
+            ':email' => $email,
+            ':passwordHash' => password_hash($password, PASSWORD_DEFAULT),
+            ':isAdmin' => 0
+        ]);
+    }
+
     public function connect(): void
     {
-        // Put in session
         $_SESSION['User'] = $this->email;
         session_regenerate_id(true);
     }
 
-    public function getIdUser(): int
+    public function logout(): void 
     {
-        return $this->idUser;
-    }
-
-    public function logout() {
-        $_SESSION['User'] = null;
-    }
-
-    public function isMemberOfShare(int $shareId): bool
-    {
-        $statement = Database::connection()
-            ->prepare("select * from membre where idUser = :idUser and shareId = :shareId");
-        $statement->execute([
-            'idUser' => $this->getIdUser(),
-            'shareId' => $shareId
-        ]);
-
-        $member = $statement->fetch();
-        
-        return $member !== false;
+        unset($_SESSION['User']);
+        session_regenerate_id(true);
     }
 }

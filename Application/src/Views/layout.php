@@ -6,6 +6,7 @@
     <title>Helvetic Basket</title>
     <link rel="stylesheet" href="/css/style.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
 </head>
 <body>
 <nav class="navbar navbar-expand-lg">
@@ -20,9 +21,7 @@
                     <li class="nav-item">
                         <a class="nav-link" href="/">Matches</a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/favoris">Joueurs en favoris</a>
-                    </li>
+                    
                     <?php  if (!$user) { ?>
                     <li class="nav-item">
                         <a class="nav-link" href="/login">Se connecter</a>
@@ -30,9 +29,20 @@
                 <?php  } 
                  else { ?>
                     <li class="nav-item">
+                        <a class="nav-link" href="/favoris">Mes favoris</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="/logout">Se deconnecter</a>
                     </li>
-                <?php  } ?>
+                <?php
+                if($user->verifyAdmin()) { ?>
+                     <li class="nav-item">
+                        <a class="nav-link" href="/settings">Paramètres</a>
+                    </li>
+               <?php
+                
+                }
+              } ?>
             </div>
         </div>
     </nav>

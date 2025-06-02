@@ -104,6 +104,80 @@ class Matches {
         return $matches;
     }
 
+    public static function findAllFiltered(?string $niveau, ?string $region): array
+    {
+        $pdo = Database::connection();
+
+        $query = "
+            SELECT m.*
+            FROM Matches m
+            JOIN Team th ON m.idHomeTeam = th.id
+            WHERE 1=1
+        ";
+
+        $params = [];
+
+        if ($niveau && in_array($niveau, ['U16', 'U18', 'U20'])) {
+            $query .= " AND th.level = :niveau";
+            $params['niveau'] = $niveau;
+        }
+
+        if ($region && in_array($region, ['Cantonal', 'Regional', 'National'])) {
+            $query .= " AND th.region = :region";
+            $params['region'] = $region;
+        }
+
+        $query .= " ORDER BY m.dateTime ASC";
+
+        $stmt = $pdo->prepare($query);
+        $stmt->execute($params);
+
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $matches = [];
+
+        foreach ($rows as $row) {
+            $match = new self();
+            $match->setDateTime(new \DateTime($row['dateTime']));
+            $match->setHomeScore((int)$row['homeScore']);
+            $match->setVisitorScore((int)$row['visitorScore']);
+            $match->setIdHomeTeam((int)$row['idHomeTeam']);
+            $match->setIdVisitorTeam((int)$row['idVisitorTeam']);
+            $match->id = (int)$row['id'];
+            $matches[] = $match;
+        }
+
+        return $matches;
+    }
+
+    public static function findMatchByTeamId(int $teamId): array {
+  
+        $pdo = Database::connection();
+        $stmt = $pdo->prepare("
+            SELECT m.*, th.teamName AS homeTeamName, tv.teamName AS visitorTeamName, c.location AS location
+            FROM Matches m
+            JOIN Team th ON m.idHomeTeam = th.id
+            JOIN Team tv ON m.idVisitorTeam = tv.id
+            JOIN Club c ON th.idClub = c.id
+            WHERE m.idHomeTeam = :teamId1 OR m.idVisitorTeam = :teamId2
+            ORDER BY m.dateTime ASC
+        ");
+        $stmt->execute(['teamId1' => $teamId, 'teamId2' => $teamId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $matches = [];
+        foreach ($rows as $row) {
+            $match = new Matches();
+            $match->setDateTime(new DateTime($row['dateTime']));
+            $match->setHomeScore((int)$row['homeScore']);
+            $match->setVisitorScore((int)$row['visitorScore']);
+            $match->setIdHomeTeam((int)$row['idHomeTeam']);
+            $match->setIdVisitorTeam((int)$row['idVisitorTeam']);
+            $match->id = (int)$row['id'];
+            $matches[] = $match;
+        }
+
+        return $matches;
+    }
     public static function findById(int $id): ?self {
             $pdo = Database::connection();
         $stmt = $pdo->prepare("
@@ -137,23 +211,29 @@ class Matches {
 
         if ($this->id === null) {
             $stmt = $pdo->prepare("INSERT INTO " . self::$table . " 
-                (date_time, home_score, visitor_score, id_home_team, id_visitor_team)
+                (dateTime, homeScore, visitorScore, idHomeTeam, idVisitorTeam)
                 VALUES (:dateTime, :homeScore, :visitorScore, :idHomeTeam, :idVisitorTeam)");
             
-            return $stmt->execute([
+            $result = $stmt->execute([
                 'dateTime' => $this->dateTime?->format('Y-m-d H:i:s'),
                 'homeScore' => $this->homeScore,
                 'visitorScore' => $this->visitorScore,
                 'idHomeTeam' => $this->idHomeTeam,
                 'idVisitorTeam' => $this->idVisitorTeam
             ]);
+
+            if ($result) {
+                $this->id = (int)$pdo->lastInsertId();
+            }
+
+            return $result;
         } else {
             $stmt = $pdo->prepare("UPDATE " . self::$table . " SET
-                date_time = :dateTime,
-                home_score = :homeScore,
-                visitor_score = :visitorScore,
-                id_home_team = :idHomeTeam,
-                id_visitor_team = :idVisitorTeam
+                dateTime = :dateTime,
+                homeScore = :homeScore,
+                visitorScore = :visitorScore,
+                idHomeTeam = :idHomeTeam,
+                idVisitorTeam = :idVisitorTeam
                 WHERE id = :id");
 
             return $stmt->execute([
@@ -165,5 +245,13 @@ class Matches {
                 'idVisitorTeam' => $this->idVisitorTeam
             ]);
         }
+    }
+
+    public function delete(): bool {
+        if ($this->id === null) return false;
+
+        $pdo = Database::connection();
+        $stmt = $pdo->prepare("DELETE FROM " . self::$table . " WHERE id = :id");
+        return $stmt->execute(['id' => $this->id]);
     }
 }
